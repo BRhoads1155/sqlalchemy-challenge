@@ -9,6 +9,8 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
 
+import datetime as dt
+
 from flask import Flask, jsonify
 
 
@@ -39,14 +41,24 @@ app = Flask(__name__)
 def welcome():
     return (
         f"Welcome to the Climate App!<br/>"
+        f"<br/>"
         f"Available Routes:<br/>"
+        f"<br/>"
         f"/api/v1.0/precipitation<br/>"
+        f"- List of prior year rain totals from all stations<br/>" 
+        f"<br/>"
         f"/api/v1.0/stations<br/>"
+        f"- List of Station names<br/>"
+        f"<br/>"
         f"/api/v1.0/tobs<br/>"
-        f"/api/v1.0/<start><br/>" 
-        f"/api/v1.0/<start>/<end>"
+        f"- List of prior year temperatures from all stations<br/>"        
+        f"<br/>"
+        f"/api/v1.0/temp/start/<br/>"
+        f"- When given the start date (YYYY-MM-DD), calculates the MIN/AVG/MAX temperature for all dates greater than and equal to the start date<br/>"        
+        f"<br/>" 
+        f"/api/v1.0/start/end<br/>"
+        f"- When given the start and the end date (YYYY-MM-DD), calculate the MIN/AVG/MAX temperature for dates between the start and end date inclusive<br/>"
     )
-
 @app.route("/api/v1.0/precipitation")
 def precipitation():
     # Create our session (link) from Python to the DB
@@ -66,6 +78,56 @@ def precipitation():
         all_measurements.append(measurement_dict)
 
     return jsonify(all_measurements)
+
+@app.route("/api/v1.0/stations")
+def stations():
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    results = session.query(Station.name).all()
+
+    session.close()
+
+   # Convert list of tuples into normal list
+    all_stations = list(np.ravel(results))
+
+    return jsonify(all_stations)
+
+@app.route("/api/v1.0/tobs")
+def tobs():
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+    year_ago = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    session.close()
+    
+    # Perform a query to retrieve the data and temp scores
+    results = session.query(Measurement.date, Measurement.tobs).\
+        filter(Measurement.date >= year_ago).\
+            filter(Measurement.station == "USC00519281").all()
+    session.close()
+
+    # Convert list of tuples into normal list
+    temperature_list = list(np.ravel(results))
+
+    return jsonify(temperature_list)
+
+@app.route("/api/v1.0/<start>")
+def start():
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+    #sel = [func.min(Measurement.tobs), func.max(Measurement.tobs), (func.avg(Measurement.tobs)]
+
+    may_averages = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs), (func.avg(Measurement.tobs)).\
+        filter(func.strftime("%m", Measurement.date) == "05")).all()
+    
+    session.close()
+
+    may_temps = list(np.ravel(may_averages))
+
+    return jsonify(may_temps)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
