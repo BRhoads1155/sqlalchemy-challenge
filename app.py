@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, func
 
 import datetime as dt
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, session
 
 
 #################################################
@@ -53,7 +53,7 @@ def welcome():
         f"/api/v1.0/tobs<br/>"
         f"- List of prior year temperatures from all stations<br/>"        
         f"<br/>"
-        f"/api/v1.0/temp/start/<br/>"
+        f"/api/v1.0/start<br/>"
         f"- When given the start date (YYYY-MM-DD), calculates the MIN/AVG/MAX temperature for all dates greater than and equal to the start date<br/>"        
         f"<br/>" 
         f"/api/v1.0/start/end<br/>"
@@ -113,21 +113,36 @@ def tobs():
 
     return jsonify(temperature_list)
 
-@app.route("/api/v1.0/<start>")
+@app.route("/api/v1.0/start")
 def start():
     # Create our session (link) from Python to the DB
     session = Session(engine)
-    #sel = [func.min(Measurement.tobs), func.max(Measurement.tobs), (func.avg(Measurement.tobs)]
 
-    may_averages = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs), (func.avg(Measurement.tobs)).\
-        filter(func.strftime("%m", Measurement.date) == "05")).all()
-    
+    start_date = "2017-01-01"
+
+    start_list = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+        filter(Measurement.date >= start_date).group_by(Measurement.date).order_by(Measurement.date).all()
     session.close()
 
-    may_temps = list(np.ravel(may_averages))
+    start_temps = list(np.ravel(start_list))
 
-    return jsonify(may_temps)
+    return jsonify(start_temps)
 
+@app.route("/api/v1.0/start/end")
+def start_end():
+    session = Session(engine)
+
+    start_date = "2017-01-01"
+
+    end_date = "2017-01-10"
+    
+    start_end_list = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+        filter(Measurement.date >= start_date).filter(Measurement.date <= end_date).group_by(Measurement.date).order_by(Measurement.date).all()
+    session.close()
+
+    start_end_temps = list(np.ravel(start_end_list))
+
+    return jsonify(start_end_temps)
 
 if __name__ == "__main__":
     app.run(debug=True)
